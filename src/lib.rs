@@ -1,5 +1,5 @@
 use rand::Rng;
-use wgpu::Color;
+use wgpu::{Color, include_wgsl};
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
@@ -16,6 +16,7 @@ pub struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 impl State {
@@ -60,7 +61,44 @@ impl State {
 
         surface.configure(&device, &config);
 
+        let shader = device.create_shader_module(&include_wgsl!("shader.wgsl"));
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main", // 1.
+                buffers: &[], // 2.
+            },
+            primitive: Default::default(),
+            depth_stencil: None, // 1.
+            multisample: wgpu::MultisampleState {
+                count: 1, // 2.
+                mask: !0, // 3.
+                alpha_to_coverage_enabled: false, // 4.
+            },
+            multiview: None, // 5.
+            fragment: Some(wgpu::FragmentState { // 3.
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[wgpu::ColorTargetState { // 4.
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
+            }),
+        });
+
         Self {
+            render_pipeline,
             color: wgpu::Color {
                 r: 0.1,
                 g: 0.2,
@@ -130,9 +168,7 @@ impl State {
         });
 
         {
-            println!("color: {:?}", self.color);
-
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -144,6 +180,9 @@ impl State {
                 }],
                 depth_stencil_attachment: None,
             });
+
+            _render_pass.set_pipeline(&self.render_pipeline); // 2.
+            _render_pass.draw(0..3, 0..1); // 3.
         }
 
         // submit will accept anything that implements IntoIter

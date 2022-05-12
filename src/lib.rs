@@ -1,10 +1,16 @@
+use rand::Rng;
+use wgpu::Color;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
+// 0.8.0
+
+
 pub struct State {
+    color: wgpu::Color,
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -55,6 +61,12 @@ impl State {
         surface.configure(&device, &config);
 
         Self {
+            color: wgpu::Color {
+                r: 0.1,
+                g: 0.2,
+                b: 0.3,
+                a: 1.0,
+            },
             surface,
             device,
             queue,
@@ -65,6 +77,7 @@ impl State {
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         println!("resize({:?})", new_size);
+
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.config.width = new_size.width;
@@ -74,11 +87,38 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        return false;
+        match event {
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
+                    virtual_keycode: Some(key),
+                    state,
+                    ..
+                },
+                ..
+            } => {
+                let mut rng = rand::thread_rng();
+
+                let r1 = rng.gen_range(0.0..1.0);
+                let r2 = rng.gen_range(0.0..1.0);
+                let r3 = rng.gen_range(0.0..1.0);
+
+                self.color = Color {
+                    r: r1,
+                    g: r2,
+                    b: r3,
+                    a: 1.0,
+                };
+
+                true
+            }
+            _ => {
+                true
+            }
+        }
     }
 
     pub fn update(&mut self) {
-        println!("size: {:?}", self.size)
+        // println!("size: {:?}", self.color)
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -90,18 +130,15 @@ impl State {
         });
 
         {
+            println!("color: {:?}", self.color);
+
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(self.color),
                         store: true,
                     },
                 }],
